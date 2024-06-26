@@ -1,0 +1,25 @@
+{
+    "Username": "user1",
+    "Password": "password1",
+    "AccountBalance": 31.0065,
+    "IsLocked": true
+  },
+  {
+    "Username": "user2",
+    "Password": "password2",
+    "AccountBalance": 7968543.22,
+    "IsLocked": true
+  },
+  {
+    "Username": "user3",
+    "Password": "password3",
+    "AccountBalance": 11113471.84,
+    "IsLocked": false
+  },
+  {
+    "Username": "user4",
+    "Password": "password4",
+    "AccountBalance": 5500790.68,
+    "IsLocked": false
+  }
+}
