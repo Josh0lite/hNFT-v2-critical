@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml;
 
 public class Startup
@@ -44,7 +46,7 @@ public class User
     public string Email { get; set; }
     public string SocialName { get; set; }
     public string SocialDescription { get; set; }
-    public string Password { get; set; } // Add Password property
+    public string PasswordHash { get; set; } // Use hashed password
 
     public bool IsLocked { get; set; }
 
@@ -76,19 +78,20 @@ public class NFTUserController : ControllerBase
         _users = JsonConvert.DeserializeObject<List<User>>(jsonData);
     }
 
-
     [HttpPost("account/auth")]
     public ActionResult<bool> AuthenticateAccount([FromBody] UserCredentials credentials)
     {
-        // Check if the user exists in the JSON file
-        var user = _users.FirstOrDefault(u => u.Username == credentials.Username && u.Password == credentials.Password);
+        // Hash the provided password
+        string hashedPassword = ComputeSha256Hash(credentials.Password);
+
+        // Check if the user exists in the JSON file with the hashed password
+        var user = _users.FirstOrDefault(u => u.Username == credentials.Username && u.PasswordHash == hashedPassword);
 
         if (user == null || user.IsLocked)
             return NotFound();
 
         return !user.IsLocked;
     }
-
 
     [HttpGet("account/assets/{userId}")]
     public ActionResult<IEnumerable<Asset>> ListAssets(int userId)
@@ -112,7 +115,6 @@ public class NFTUserController : ControllerBase
         // Wrap the string within an Ok response
         return Ok(social_des); // Assuming User is your user model
     }
-
 
     [HttpPost("account/social/set/{userId}")]
     public IActionResult SetSocialInfo(int userId, [FromBody] User updatedUser)
@@ -188,6 +190,7 @@ public class NFTUserController : ControllerBase
 
         return NoContent();
     }
+
     [HttpPost("account/create")]
     public IActionResult CreateAccount([FromBody] CreateUserRequest request)
     {
@@ -212,7 +215,8 @@ public class NFTUserController : ControllerBase
             IsLocked = false,
             Assets = new List<Asset>(),
             SocialName = string.Empty,
-            SocialDescription = string.Empty
+            SocialDescription = string.Empty,
+            PasswordHash = ComputeSha256Hash(request.Password) // Hash the password before saving
         };
 
         // Add the new user to the list
@@ -278,7 +282,7 @@ public class NFTUserController : ControllerBase
         if (user == null || user.IsLocked)
             return NotFound();
 
-        user.Password = newPassword;
+        user.PasswordHash = ComputeSha256Hash(newPassword); // Hash the new password
 
         SaveChangesToJSONFile();
 
@@ -307,13 +311,12 @@ public class NFTUserController : ControllerBase
         user.Email = updatedUser.Email;
         user.SocialName = updatedUser.SocialName;
         user.SocialDescription = updatedUser.SocialDescription;
-        user.Password = updatedUser.Password; // Add if necessary
+        user.PasswordHash = ComputeSha256Hash(updatedUser.Password); // Hash the updated password
 
         SaveChangesToJSONFile();
 
         return Ok(user);
     }
-
 
     private User GetUserById(int userId)
     {
@@ -327,12 +330,29 @@ public class NFTUserController : ControllerBase
         string jsonData = JsonConvert.SerializeObject(_users, Newtonsoft.Json.Formatting.Indented);
         System.IO.File.WriteAllText(jsonFilePath, jsonData);
     }
+
+    private static string ComputeSha256Hash(string rawData)
+    {
+        using (SHA256 sha256Hash = SHA256.Create())
+        {
+            byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                builder.Append(bytes[i].ToString("x2"));
+            }
+            return builder.ToString();
+        }
+    }
 }
+
 public class CreateUserRequest
 {
     public string Username { get; set; }
     public string Email { get; set; }
+    public string Password { get; set; } // Include password in the request
 }
+
 public class TransferRequest
 {
     public int FromUserId { get; set; }
